@@ -28,7 +28,7 @@ export default function AdminPage() {
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
   const [category, setCategory] = useState("Fruits");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Fetch products from Supabase
   const fetchProducts = async () => {
@@ -56,12 +56,37 @@ export default function AdminPage() {
     setSaving(true);
     setMessage("");
 
+    let uploadedImageUrl = "https://via.placeholder.com/150";
+
+    // Direct Image File Upload to Supabase Storage
+    if (imageFile) {
+      const fileExt = imageFile.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, imageFile);
+
+      if (uploadError) {
+        setMessage(`❌ Image upload failed: ${uploadError.message}`);
+        setSaving(false);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
+
+      uploadedImageUrl = publicUrlData.publicUrl;
+    }
+
     const newProduct = {
       name,
       price: parseFloat(price),
       unit,
       category,
-      image_url: imageUrl || "https://via.placeholder.com/150",
+      image_url: uploadedImageUrl,
     };
 
     const { error } = await supabase.from("products").insert([newProduct]);
@@ -73,7 +98,7 @@ export default function AdminPage() {
       // Reset Form
       setName("");
       setPrice("");
-      setImageUrl("");
+      setImageFile(null);
       fetchProducts();
     }
     setSaving(false);
@@ -177,13 +202,12 @@ export default function AdminPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Image URL (Optional)</label>
+              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Product Photo (Direct Upload)</label>
               <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                className="w-full p-2 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               />
             </div>
 
@@ -193,7 +217,7 @@ export default function AdminPage() {
                 disabled={saving}
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-200 disabled:opacity-50"
               >
-                {saving ? "Saving Product..." : "Save Product to Store"}
+                {saving ? "Uploading & Saving..." : "Save Product to Store"}
               </button>
             </div>
           </form>
@@ -212,6 +236,7 @@ export default function AdminPage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
                   <tr>
+                    <th className="p-3">Image</th>
                     <th className="p-3">Product</th>
                     <th className="p-3">Category</th>
                     <th className="p-3">Price</th>
@@ -222,6 +247,13 @@ export default function AdminPage() {
                 <tbody className="divide-y">
                   {products.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="p-3">
+                        <img 
+                          src={item.image_url || "https://via.placeholder.com/150"} 
+                          alt={item.name} 
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                      </td>
                       <td className="p-3 font-medium text-gray-900">{item.name}</td>
                       <td className="p-3 text-gray-600">{item.category || "N/A"}</td>
                       <td className="p-3 font-semibold text-green-700">₦{item.price?.toLocaleString()}</td>
