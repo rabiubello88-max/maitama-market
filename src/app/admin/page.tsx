@@ -27,7 +27,7 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
-  const [category, setCategory] = useState("Fruits");
+  const [category, setCategory] = useState("fruits");
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Fetch products from Supabase
@@ -193,11 +193,11 @@ export default function AdminPage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               >
-                <option value="Fruits">Fruits</option>
-                <option value="Vegetables">Vegetables</option>
-                <option value="Tubers">Tubers</option>
-                <option value="Grains">Grains</option>
-                <option value="Spices">Spices</option>
+                <option value="fruits">Fruits</option>
+                <option value="vegetables">Vegetables</option>
+                <option value="tubers">Tubers</option>
+                <option value="grains">Grains</option>
+                <option value="spices">Spices</option>
               </select>
             </div>
 
