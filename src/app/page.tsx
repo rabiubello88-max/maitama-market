@@ -1,185 +1,162 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { ShoppingBag, Tag, Search, Plus, Minus, Trash2, Store, MessageCircle } from 'lucide-react'
+import { useEffect, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { ShoppingBag, Tag, Search, Plus, Minus, Trash2, Store, MessageCircle } from 'lucide-react';
 
-// Set your business WhatsApp phone number here (International format without '+' or spaces)
-const WHATSAPP_PHONE_NUMBER = '2347037700658' // Replace with your phone number, e.g. 2348123456789
+// Set your business WhatsApp phone number here (International format without +)
+const WHATSAPP_PHONE_NUMBER = '2347037700658'; 
+
+const CATEGORIES = [
+  'All',
+  'Fruits',
+  'Vegetables',
+  'Tubers',
+  'Spices & Seasonings',
+  'Grains & Oils',
+];
 
 interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  category: string
-  unit: string
-  image_url: string
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  unit: string;
+  image_url: string;
 }
 
 interface CartItem extends Product {
-  quantity: number
+  quantity: number;
 }
 
-export default function CustomerStorefront() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState<string>('')
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [customerName, setCustomerName] = useState('')
-  const [deliveryAddress, setDeliveryAddress] = useState('')
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  const supabase = createClient()
+export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
-    async function fetchProducts() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
+    fetchProducts();
+  }, []);
 
-      if (!error && data) {
-        setProducts(data)
-      }
-      setLoading(false)
+  const fetchProducts = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('products').select('*');
+    if (!error && data) {
+      setProducts(data);
     }
-
-    fetchProducts()
-  }, [supabase])
-
-  const filteredProducts = products.filter((product) => {
-    const matchesCategory =
-      selectedCategory === 'all' || product.category === selectedCategory
-    const matchesSearch = product.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase())
-    return matchesCategory && matchesSearch
-  })
+    setLoading(false);
+  };
 
   const addToCart = (product: Product) => {
     setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.id === product.id)
+      const existing = prevCart.find((item) => item.id === product.id);
       if (existing) {
         return prevCart.map((item) =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
       }
-      return [...prevCart, { ...product, quantity: 1 }]
-    })
-  }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
+  };
 
   const updateQuantity = (id: string, delta: number) => {
     setCart((prevCart) =>
       prevCart
         .map((item) => {
           if (item.id === id) {
-            const newQty = item.quantity + delta
-            return newQty > 0 ? { ...item, quantity: newQty } : null
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
-          return item
+          return item;
         })
         .filter(Boolean) as CartItem[]
-    )
-  }
+    );
+  };
 
   const removeFromCart = (id: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id))
-  }
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  };
 
-  const cartTotal = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  )
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // Generate WhatsApp Order Link & Redirect
-  const handleWhatsAppCheckout = () => {
-    if (cart.length === 0) return
+  const handleCheckout = () => {
+    if (cart.length === 0) return;
 
-    let itemsText = cart
-      .map(
-        (item, idx) =>
-          `${idx + 1}. *${item.name}* (${item.quantity} ${item.unit}) - ₦${(
-            item.price * item.quantity
-          ).toLocaleString()}`
-      )
-      .join('\n')
+    let message = `*New Order - Maitama Market*\n\n`;
+    cart.forEach((item) => {
+      message += `• ${item.name} (${item.quantity} ${item.unit}) - ₦${(
+        item.price * item.quantity
+      ).toLocaleString()}\n`;
+    });
+    message += `\n*Total Amount:* ₦${cartTotal.toLocaleString()}\n\nPlease confirm availability and delivery details.`;
 
-    let message = `🛒 *NEW ORDER - MAITAMA MARKET*\n\n`
-    if (customerName) message += `👤 *Customer Name:* ${customerName}\n`
-    if (deliveryAddress) message += `📍 *Delivery Address:* ${deliveryAddress}\n`
-    message += `\n*Order Summary:*\n${itemsText}\n\n`
-    message += `💰 *Total Amount:* ₦${cartTotal.toLocaleString()}\n\n`
-    message += `Please confirm availability and delivery timeframe. Thank you!`
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodedMessage}`, '_blank');
+  };
 
-    const encodedMessage = encodeURIComponent(message)
-    const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodedMessage}`
-
-    window.open(whatsappUrl, '_blank')
-  }
+  // Filter products by search and selected category
+  const filteredProducts = products.filter((p) => {
+    const matchesCategory =
+      selectedCategory === 'All' ||
+      p.category?.toLowerCase() === selectedCategory.toLowerCase();
+    const matchesSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-emerald-800 text-white sticky top-0 z-20 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="bg-green-700 text-white sticky top-0 z-10 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Store className="w-7 h-7 text-emerald-300" />
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Maitama Market</h1>
-              <p className="text-xs text-emerald-200">Fresh Produce Delivered</p>
-            </div>
+            <Store className="h-7 w-7" />
+            <h1 className="text-2xl font-bold tracking-tight">Maitama Market</h1>
           </div>
-
           <div className="relative">
-            <button className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold transition">
-              <ShoppingBag className="w-5 h-5 text-emerald-200" />
-              <span>Cart ({cartItemCount})</span>
-            </button>
+            <ShoppingBag className="h-6 w-6" />
+            {cart.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-yellow-400 text-green-950 text-xs font-extrabold h-5 w-5 rounded-full flex items-center justify-center">
+                {cart.reduce((a, c) => a + c.quantity, 0)}
+              </span>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Hero & Search Banner */}
-      <section className="bg-emerald-900 text-white py-10 px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-4">
-          <h2 className="text-3xl font-extrabold sm:text-4xl">
-            Fresh Fruits & Vegetables directly from Maitama
-          </h2>
-          <p className="text-emerald-200 text-sm max-w-xl mx-auto">
-            Select your items and place your order directly via WhatsApp for fast local delivery.
-          </p>
-
-          <div className="relative max-w-md mx-auto pt-2">
-            <Search className="w-5 h-5 absolute left-3 top-5 text-gray-400" />
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Product Catalog */}
+        <div className="lg:col-span-2">
+          {/* Search Bar */}
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search tomatoes, mangoes..."
+              placeholder="Search fresh produce..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white text-gray-900 text-sm outline-none focus:ring-2 focus:ring-emerald-400 shadow-sm"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 bg-white shadow-sm"
             />
           </div>
-        </div>
-      </section>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 flex-1 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Products Column */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {['all', 'fruits', 'vegetables', 'others'].map((cat) => (
+          {/* Category Filter Tabs */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {CATEGORIES.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold capitalize whitespace-nowrap transition ${
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   selectedCategory === cat
-                    ? 'bg-emerald-700 text-white shadow-sm'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >
                 {cat}
@@ -187,63 +164,55 @@ export default function CustomerStorefront() {
             ))}
           </div>
 
+          {/* Product Grid */}
           {loading ? (
-            <div className="text-center py-16 text-gray-500 text-sm">
-              Loading fresh produce...
-            </div>
+            <div className="text-center py-12 text-gray-500">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-dashed text-gray-500 text-sm">
-              No produce found matching your query.
+            <div className="text-center py-12 text-gray-500">
+              No products found in "{selectedCategory}".
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition"
+                  className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow"
                 >
                   <div>
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="w-full h-44 object-cover"
+                        className="w-full h-40 object-cover"
                       />
                     ) : (
-                      <div className="w-full h-44 bg-gray-100 flex items-center justify-center text-gray-400">
-                        <Tag className="w-8 h-8" />
+                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                        No Image
                       </div>
                     )}
-
-                    <div className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium uppercase bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-md">
-                          {product.category}
-                        </span>
-                        <span className="text-xs text-gray-500 font-semibold">
-                          / {product.unit}
-                        </span>
-                      </div>
-                      <h3 className="font-bold text-gray-900 text-base">
-                        {product.name}
-                      </h3>
+                    <div className="p-4">
+                      <span className="text-xs text-green-700 font-bold uppercase tracking-wider bg-green-50 px-2 py-0.5 rounded">
+                        {product.category || 'General'}
+                      </span>
+                      <h3 className="font-semibold text-gray-900 mt-2">{product.name}</h3>
                       {product.description && (
-                        <p className="text-xs text-gray-500 line-clamp-2">
-                          {product.description}
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">{product.description}</p>
                       )}
                     </div>
                   </div>
 
                   <div className="p-4 pt-0 flex items-center justify-between mt-2">
-                    <span className="text-lg font-extrabold text-emerald-800">
-                      ₦{product.price.toLocaleString()}
-                    </span>
+                    <div>
+                      <span className="text-lg font-bold text-gray-900">
+                        ₦{product.price?.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-gray-500"> / {product.unit}</span>
+                    </div>
                     <button
                       onClick={() => addToCart(product)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
+                      className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
                     >
-                      <Plus className="w-4 h-4" /> Add
+                      <Plus className="h-4 w-4" /> Add
                     </button>
                   </div>
                 </div>
@@ -252,98 +221,69 @@ export default function CustomerStorefront() {
           )}
         </div>
 
-        {/* Order Cart Sidebar */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm h-fit space-y-4">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-emerald-600" /> Your Order
+        {/* Sidebar Cart */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit sticky top-24">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-green-600" /> Your Cart
           </h2>
 
           {cart.length === 0 ? (
-            <p className="text-xs text-gray-400 py-6 text-center">
-              Your cart is empty. Click + Add on items to build your order.
-            </p>
+            <div className="text-center py-8 text-gray-400">Your cart is currently empty.</div>
           ) : (
             <div className="space-y-4">
-              <div className="divide-y divide-gray-100 max-h-60 overflow-y-auto pr-1">
-                {cart.map((item) => (
-                  <div
-                    key={item.id}
-                    className="py-3 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">{item.name}</p>
-                      <p className="text-gray-500">
-                        ₦{item.price.toLocaleString()} x {item.quantity}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center border rounded-lg overflow-hidden">
-                        <button
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="px-2 py-1 bg-gray-50 hover:bg-gray-100"
-                        >
-                          <Minus className="w-3 h-3 text-gray-600" />
-                        </button>
-                        <span className="px-2 font-semibold text-gray-800">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="px-2 py-1 bg-gray-50 hover:bg-gray-100"
-                        >
-                          <Plus className="w-3 h-3 text-gray-600" />
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-gray-400 hover:text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {cart.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between border-b pb-3 gap-2"
+                >
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm text-gray-900">{item.name}</h4>
+                    <span className="text-xs text-gray-500">
+                      ₦{item.price.toLocaleString()} / {item.unit}
+                    </span>
                   </div>
-                ))}
-              </div>
 
-              {/* Delivery Details Inputs */}
-              <div className="space-y-2 border-t pt-3">
-                <input
-                  type="text"
-                  placeholder="Your Name (Optional)"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Delivery Address / Area (Optional)"
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(item.id, -1)}
+                      className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.id, 1)}
+                      className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded ml-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
 
-              <div className="border-t pt-3 space-y-3">
-                <div className="flex justify-between text-sm font-bold text-gray-900">
-                  <span>Total Amount:</span>
-                  <span className="text-emerald-700">
-                    ₦{cartTotal.toLocaleString()}
-                  </span>
+              <div className="pt-4 border-t">
+                <div className="flex justify-between items-center text-lg font-bold mb-4">
+                  <span>Total:</span>
+                  <span className="text-green-700">₦{cartTotal.toLocaleString()}</span>
                 </div>
 
                 <button
-                  onClick={handleWhatsAppCheckout}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs tracking-wide transition shadow-sm flex items-center justify-center gap-2"
+                  onClick={handleCheckout}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow"
                 >
-                  <MessageCircle className="w-4 h-4" /> Order via WhatsApp
+                  <MessageCircle className="h-5 w-5" /> Order via WhatsApp
                 </button>
               </div>
             </div>
           )}
         </div>
-      </main>
+      </div>
     </div>
-  )
+  );
 }
