@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { ShoppingBag, Tag, Search, Plus, Minus, Trash2, Store, MessageCircle } from 'lucide-react';
+import { ShoppingBag, Search, Plus, Minus, Trash2, Store, MessageCircle, X } from 'lucide-react';
 
-// Set your business WhatsApp phone number here (International format without +)
-const WHATSAPP_PHONE_NUMBER = '2347037700658'; 
+const WHATSAPP_PHONE_NUMBER = '2347037700658';
 
 const CATEGORIES = [
   'All',
@@ -41,6 +40,7 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
   useEffect(() => {
     fetchProducts();
@@ -86,6 +86,7 @@ export default function Home() {
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalItemsCount = cart.reduce((a, c) => a + c.quantity, 0);
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -102,7 +103,6 @@ export default function Home() {
     window.open(`https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodedMessage}`, '_blank');
   };
 
-  // Filter products by search and selected category
   const filteredProducts = products.filter((p) => {
     const matchesCategory =
       selectedCategory === 'All' ||
@@ -111,31 +111,106 @@ export default function Home() {
     return matchesCategory && matchesSearch;
   });
 
+  const renderCartContent = () => (
+    <>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <ShoppingBag className="h-5 w-5 text-green-600" /> Your Cart
+        </h2>
+        <button
+          onClick={() => setIsCartOpen(false)}
+          className="lg:hidden p-1 text-gray-500 hover:text-gray-800"
+        >
+          <X className="h-6 w-6" />
+        </button>
+      </div>
+
+      {cart.length === 0 ? (
+        <div className="text-center py-8 text-gray-400">Your cart is currently empty.</div>
+      ) : (
+        <div className="space-y-4">
+          <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4">
+            {cart.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between border-b pb-3 gap-2"
+              >
+                <div className="flex-1">
+                  <h4 className="font-medium text-sm text-gray-900">{item.name}</h4>
+                  <span className="text-xs text-gray-500">
+                    ₦{item.price.toLocaleString()} / {item.unit}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => updateQuantity(item.id, -1)}
+                    className="p-1 text-gray-500 hover:bg-gray-100 rounded border"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(item.id, 1)}
+                    className="p-1 text-gray-500 hover:bg-gray-100 rounded border"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded ml-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-4 border-t">
+            <div className="flex justify-between items-center text-lg font-bold mb-4">
+              <span>Total:</span>
+              <span className="text-green-700">₦{cartTotal.toLocaleString()}</span>
+            </div>
+
+            <button
+              onClick={handleCheckout}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow"
+            >
+              <MessageCircle className="h-5 w-5" /> Order via WhatsApp
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-green-700 text-white sticky top-0 z-10 shadow-md">
+      <header className="bg-green-700 text-white sticky top-0 z-20 shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Store className="h-7 w-7" />
             <h1 className="text-2xl font-bold tracking-tight">Maitama Market</h1>
           </div>
-          <div className="relative">
+
+          <button
+            onClick={() => setIsCartOpen(!isCartOpen)}
+            className="relative p-2 rounded-lg hover:bg-green-800 transition-colors"
+            aria-label="Open Cart"
+          >
             <ShoppingBag className="h-6 w-6" />
-            {cart.length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-yellow-400 text-green-950 text-xs font-extrabold h-5 w-5 rounded-full flex items-center justify-center">
-                {cart.reduce((a, c) => a + c.quantity, 0)}
+            {totalItemsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-yellow-400 text-green-950 text-xs font-extrabold h-5 w-5 rounded-full flex items-center justify-center shadow">
+                {totalItemsCount}
               </span>
             )}
-          </div>
+          </button>
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Product Catalog */}
         <div className="lg:col-span-2">
-          {/* Search Bar */}
           <div className="relative mb-6">
             <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <input
@@ -143,11 +218,10 @@ export default function Home() {
               placeholder="Search fresh produce..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 bg-white shadow-sm"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 bg-white shadow-sm text-gray-900"
             />
           </div>
 
-          {/* Category Filter Tabs */}
           <div className="flex flex-wrap gap-2 mb-6">
             {CATEGORIES.map((cat) => (
               <button
@@ -164,7 +238,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Product Grid */}
           {loading ? (
             <div className="text-center py-12 text-gray-500">Loading products...</div>
           ) : filteredProducts.length === 0 ? (
@@ -221,69 +294,22 @@ export default function Home() {
           )}
         </div>
 
-        {/* Sidebar Cart */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit sticky top-24">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-green-600" /> Your Cart
-          </h2>
-
-          {cart.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">Your cart is currently empty.</div>
-          ) : (
-            <div className="space-y-4">
-              {cart.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between border-b pb-3 gap-2"
-                >
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm text-gray-900">{item.name}</h4>
-                    <span className="text-xs text-gray-500">
-                      ₦{item.price.toLocaleString()} / {item.unit}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.id, -1)}
-                      className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.id, 1)}
-                      className="p-1 text-gray-500 hover:bg-gray-100 rounded"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded ml-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              <div className="pt-4 border-t">
-                <div className="flex justify-between items-center text-lg font-bold mb-4">
-                  <span>Total:</span>
-                  <span className="text-green-700">₦{cartTotal.toLocaleString()}</span>
-                </div>
-
-                <button
-                  onClick={handleCheckout}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow"
-                >
-                  <MessageCircle className="h-5 w-5" /> Order via WhatsApp
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="hidden lg:block bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit sticky top-24">
+          {renderCartContent()}
         </div>
       </div>
+
+      {isCartOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
+          <div
+            onClick={() => setIsCartOpen(false)}
+            className="fixed inset-0 bg-black/50 transition-opacity"
+          />
+          <div className="relative w-full max-w-md bg-white h-full p-6 shadow-xl flex flex-col justify-between z-10 overflow-y-auto">
+            {renderCartContent()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
