@@ -7,7 +7,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maitama2026";
+const DEFAULT_FALLBACK_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maitama2026";
+// Master PIN required exclusively to alter the dashboard password
+const MASTER_PIN = "9988";
 
 const CATEGORIES = [
   "Fruits",
@@ -37,6 +39,13 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  // Admin password & PIN state
+  const [currentDbPassword, setCurrentDbPassword] = useState(DEFAULT_FALLBACK_PASSWORD);
+  const [pinInput, setPinInput] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordChangeMsg, setPasswordChangeMsg] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
@@ -44,16 +53,39 @@ export default function AdminPage() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  const fetchAdminPassword = async () => {
+    const { data, error } = await supabase
+      .from("admin_settings")
+      .select("admin_password")
+      .eq("id", 1)
+      .single();
+
+    if (!error && data?.admin_password) {
+      setCurrentDbPassword(data.admin_password);
+    }
+  };
+
   useEffect(() => {
+    fetchAdminPassword();
     const session = localStorage.getItem("maitama_admin_auth");
     if (session === "true") {
       setIsAuthenticated(true);
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === ADMIN_PASSWORD) {
+    setAuthError("");
+
+    const { data } = await supabase
+      .from("admin_settings")
+      .select("admin_password")
+      .eq("id", 1)
+      .single();
+
+    const activePassword = data?.admin_password || currentDbPassword;
+
+    if (passwordInput === activePassword) {
       setIsAuthenticated(true);
       localStorage.setItem("maitama_admin_auth", "true");
       setAuthError("");
@@ -65,6 +97,38 @@ export default function AdminPage() {
   const handleLogout = () => {
     localStorage.removeItem("maitama_admin_auth");
     setIsAuthenticated(false);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeMsg("");
+
+    // Validate Master Security PIN
+    if (pinInput !== MASTER_PIN) {
+      setPasswordChangeMsg("❌ Invalid Master Security PIN! Only store owners can change the password.");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      setPasswordChangeMsg("❌ Please enter a valid new password.");
+      return;
+    }
+
+    setUpdatingPassword(true);
+
+    const { error } = await supabase
+      .from("admin_settings")
+      .upsert({ id: 1, admin_password: newPassword.trim() });
+
+    if (error) {
+      setPasswordChangeMsg(`❌ Failed to update password: ${error.message}`);
+    } else {
+      setCurrentDbPassword(newPassword.trim());
+      setPasswordChangeMsg("✅ Admin password updated successfully!");
+      setNewPassword("");
+      setPinInput("");
+    }
+    setUpdatingPassword(false);
   };
 
   const fetchProducts = async () => {
@@ -139,11 +203,9 @@ export default function AdminPage() {
     setSaving(false);
   };
 
-  // Toggle availability state directly in Supabase
   const handleToggleAvailability = async (id: string | number, currentStatus: boolean) => {
     const newStatus = !currentStatus;
 
-    // Optimistic local update
     setProducts((prev) =>
       prev.map((item) => (item.id === id ? { ...item, is_available: newStatus } : item))
     );
@@ -155,7 +217,7 @@ export default function AdminPage() {
 
     if (error) {
       alert(`Error updating availability: ${error.message}`);
-      fetchProducts(); // Revert on failure
+      fetchProducts();
     }
   };
 
@@ -231,6 +293,54 @@ export default function AdminPage() {
               Logout
             </button>
           </div>
+        </div>
+
+        {/* Change Password Form (Owner PIN Protected) */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <h2 className="text-lg font-bold mb-1 text-gray-800">🔒 Security Settings (Owner Only)</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Requires the Master Security PIN to change the main admin login password.
+          </p>
+
+          {passwordChangeMsg && (
+            <div className={`p-3 mb-4 rounded text-sm ${passwordChangeMsg.includes("❌") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+              {passwordChangeMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleChangePassword} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Master PIN</label>
+              <input
+                type="password"
+                required
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="Owner PIN"
+                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">New Login Password</label>
+              <input
+                type="password"
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                disabled={updatingPassword}
+                className="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-md transition text-sm disabled:opacity-50"
+              >
+                {updatingPassword ? "Updating..." : "Update Password"}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* Add Product Form */}
