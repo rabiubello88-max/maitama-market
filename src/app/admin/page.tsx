@@ -9,6 +9,14 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maitama2026";
 
+const CATEGORIES = [
+  "Fruits",
+  "Vegetables",
+  "Tubers",
+  "Spices & Seasonings",
+  "Grains & Oils",
+];
+
 interface Product {
   id?: string | number;
   name: string;
@@ -31,7 +39,7 @@ export default function AdminPage() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
-  const [category, setCategory] = useState("fruits");
+  const [category, setCategory] = useState(CATEGORIES[0]);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Check existing session on load
@@ -266,11 +274,11 @@ export default function AdminPage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
               >
-                <option value="fruits">Fruits</option>
-                <option value="vegetables">Vegetables</option>
-                <option value="tubers">Tubers</option>
-                <option value="grains">Grains</option>
-                <option value="spices">Spices</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </select>
             </div>
 
