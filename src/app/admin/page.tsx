@@ -24,6 +24,7 @@ interface Product {
   unit: string;
   category: string;
   image_url?: string;
+  is_available?: boolean;
 }
 
 export default function AdminPage() {
@@ -40,9 +41,9 @@ export default function AdminPage() {
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
   const [category, setCategory] = useState(CATEGORIES[0]);
+  const [isAvailable, setIsAvailable] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
-  // Check existing session on load
   useEffect(() => {
     const session = localStorage.getItem("maitama_admin_auth");
     if (session === "true") {
@@ -120,6 +121,7 @@ export default function AdminPage() {
       unit,
       category,
       image_url: uploadedImageUrl,
+      is_available: isAvailable,
     };
 
     const { error } = await supabase.from("products").insert([newProduct]);
@@ -131,9 +133,30 @@ export default function AdminPage() {
       setName("");
       setPrice("");
       setImageFile(null);
+      setIsAvailable(true);
       fetchProducts();
     }
     setSaving(false);
+  };
+
+  // Toggle availability state directly in Supabase
+  const handleToggleAvailability = async (id: string | number, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+
+    // Optimistic local update
+    setProducts((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, is_available: newStatus } : item))
+    );
+
+    const { error } = await supabase
+      .from("products")
+      .update({ is_available: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      alert(`Error updating availability: ${error.message}`);
+      fetchProducts(); // Revert on failure
+    }
   };
 
   const handleDeleteProduct = async (id: string | number) => {
@@ -147,14 +170,13 @@ export default function AdminPage() {
     }
   };
 
-  // Login Screen if not authenticated
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 text-gray-800">
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md border border-gray-200">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Maitama Market Admin</h1>
           <p className="text-sm text-gray-500 mb-6 text-center">Enter your security password to access control</p>
-          
+
           {authError && (
             <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm text-center">
               {authError}
@@ -180,7 +202,7 @@ export default function AdminPage() {
               Unlock Dashboard
             </button>
           </form>
-          
+
           <div className="mt-6 text-center">
             <a href="/" className="text-xs text-gray-500 hover:underline">← Back to Storefront</a>
           </div>
@@ -189,11 +211,9 @@ export default function AdminPage() {
     );
   }
 
-  // Dashboard Screen if authenticated
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
       <div className="max-w-4xl mx-auto space-y-8">
-        
         {/* Header */}
         <div className="bg-white p-6 rounded-lg shadow-sm border flex justify-between items-center">
           <div>
@@ -201,10 +221,7 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500">Manage products and inventory</p>
           </div>
           <div className="flex items-center space-x-4">
-            <a
-              href="/"
-              className="text-sm font-medium text-green-600 hover:text-green-700 underline"
-            >
+            <a href="/" className="text-sm font-medium text-green-600 hover:text-green-700 underline">
               ← View Main Store
             </a>
             <button
@@ -219,7 +236,7 @@ export default function AdminPage() {
         {/* Add Product Form */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <h2 className="text-lg font-bold mb-4 text-gray-800">➕ Add New Product</h2>
-          
+
           {message && (
             <div className={`p-3 mb-4 rounded text-sm ${message.includes("❌") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
               {message}
@@ -304,10 +321,10 @@ export default function AdminPage() {
           </form>
         </div>
 
-        {/* Existing Products List */}
+        {/* Inventory List with Availability Toggle */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <h2 className="text-lg font-bold mb-4 text-gray-800">📦 Inventory List ({products.length})</h2>
-          
+
           {loading ? (
             <p className="text-sm text-gray-500">Loading inventory from Supabase...</p>
           ) : products.length === 0 ? (
@@ -321,40 +338,53 @@ export default function AdminPage() {
                     <th className="p-3">Product</th>
                     <th className="p-3">Category</th>
                     <th className="p-3">Price</th>
-                    <th className="p-3">Unit</th>
+                    <th className="p-3">Availability</th>
                     <th className="p-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {products.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="p-3">
-                        <img 
-                          src={item.image_url || "https://via.placeholder.com/150"} 
-                          alt={item.name} 
-                          className="w-10 h-10 object-cover rounded"
-                        />
-                      </td>
-                      <td className="p-3 font-medium text-gray-900">{item.name}</td>
-                      <td className="p-3 text-gray-600">{item.category || "N/A"}</td>
-                      <td className="p-3 font-semibold text-green-700">₦{item.price?.toLocaleString()}</td>
-                      <td className="p-3 text-gray-600">{item.unit || "piece"}</td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => item.id && handleDeleteProduct(item.id)}
-                          className="text-red-600 hover:text-red-800 font-medium text-xs bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded transition"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {products.map((item) => {
+                    const available = item.is_available !== false;
+                    return (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="p-3">
+                          <img
+                            src={item.image_url || "https://via.placeholder.com/150"}
+                            alt={item.name}
+                            className="w-10 h-10 object-cover rounded"
+                          />
+                        </td>
+                        <td className="p-3 font-medium text-gray-900">{item.name}</td>
+                        <td className="p-3 text-gray-600">{item.category || "N/A"}</td>
+                        <td className="p-3 font-semibold text-green-700">₦{item.price?.toLocaleString()} / {item.unit}</td>
+                        <td className="p-3">
+                          <button
+                            onClick={() => item.id && handleToggleAvailability(item.id, available)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition flex items-center space-x-1 ${
+                              available
+                                ? "bg-green-100 text-green-800 border-green-300 hover:bg-green-200"
+                                : "bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-300"
+                            }`}
+                          >
+                            <span>{available ? "🟢 In Stock" : "⚪ Out of Stock"}</span>
+                          </button>
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => item.id && handleDeleteProduct(item.id)}
+                            className="text-red-600 hover:text-red-800 font-medium text-xs bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded transition"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
