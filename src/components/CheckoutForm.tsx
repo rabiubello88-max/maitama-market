@@ -14,10 +14,10 @@ export default function CheckoutForm() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
 
-  // Replace with your active market WhatsApp number (country code + number, no '+' or spaces)
-  const merchantPhoneNumber = "2348000000000"; 
+  // Updated with your official WhatsApp number
+  const merchantPhoneNumber = "2347037700658"; 
 
-  // Sample items — update/connect this with your actual cart state when ready
+  // Sample cart items — update/connect this with your actual cart state when ready
   const cartItems: CartItem[] = [
     { name: "Fresh Tomatoes", quantity: 3, unit: "basket", price: 2500 },
     { name: "Sweet Oranges", quantity: 1, unit: "bag", price: 4000 },
@@ -25,6 +25,12 @@ export default function CheckoutForm() {
 
   const handleWhatsAppCheckout = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Basic validation check
+    if (!customerName.trim() || !phone.trim() || !address.trim()) {
+      alert("Please fill in your name, phone number, and delivery address before proceeding.");
+      return;
+    }
 
     const orderId = `MM-${Math.floor(1000 + Math.random() * 9000)}`;
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -63,7 +69,8 @@ Please confirm item availability and dispatch delivery.`;
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${merchantPhoneNumber}?text=${encodedMessage}`;
 
-    window.open(whatsappUrl, "_blank");
+    // Direct redirection to avoid popup blockers
+    window.location.href = whatsappUrl;
   };
 
   return (
