@@ -1,315 +1,249 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { ShoppingBag, Search, Plus, Minus, Trash2, Store, MessageCircle, X } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+import CheckoutModal from "@/components/CheckoutForm";
 
-const WHATSAPP_PHONE_NUMBER = '2347037700658';
-
-const CATEGORIES = [
-  'All',
-  'Fruits',
-  'Vegetables',
-  'Tubers',
-  'Spices & Seasonings',
-  'Grains & Oils',
-];
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface Product {
   id: string;
   name: string;
-  description: string;
-  price: number;
   category: string;
+  price: number;
   unit: string;
   image_url: string;
+  is_available: boolean;
 }
 
-interface CartItem extends Product {
+interface CartItem {
+  name: string;
   quantity: number;
+  unit: string;
+  price: number;
 }
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [cart, setCart] = useState<{ [key: string]: number }>({});
+  const [loading, setLoading] = useState(true);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  async function fetchProducts() {
     setLoading(true);
-    const { data, error } = await supabase.from('products').select('*');
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("is_available", true);
+
     if (!error && data) {
       setProducts(data);
     }
     setLoading(false);
-  };
+  }
 
-  const addToCart = (product: Product) => {
-    setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.id === product.id);
-      if (existing) {
-        return prevCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart((prev) => {
+      const current = prev[productId] || 0;
+      const updated = current + delta;
+      if (updated <= 0) {
+        const copy = { ...prev };
+        delete copy[productId];
+        return copy;
       }
-      return [...prevCart, { ...product, quantity: 1 }];
+      return { ...prev, [productId]: updated };
     });
   };
 
-  const updateQuantity = (id: string, delta: number) => {
-    setCart((prevCart) =>
-      prevCart
-        .map((item) => {
-          if (item.id === id) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
+  const totalCartItemsCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
-  const removeFromCart = (id: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
-  };
+  const cartDetails: CartItem[] = Object.entries(cart)
+    .map(([id, qty]) => {
+      const prod = products.find((p) => p.id === id);
+      if (!prod) return null;
+      return {
+        name: prod.name,
+        quantity: qty,
+        unit: prod.unit,
+        price: prod.price,
+      };
+    })
+    .filter((item): item is CartItem => item !== null);
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const totalItemsCount = cart.reduce((a, c) => a + c.quantity, 0);
-
-  const handleCheckout = () => {
-    if (cart.length === 0) return;
-
-    let message = `*New Order - Maitama Market*\n\n`;
-    cart.forEach((item) => {
-      message += `• ${item.name} (${item.quantity} ${item.unit}) - ₦${(
-        item.price * item.quantity
-      ).toLocaleString()}\n`;
-    });
-    message += `\n*Total Amount:* ₦${cartTotal.toLocaleString()}\n\nPlease confirm availability and delivery details.`;
-
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${WHATSAPP_PHONE_NUMBER}?text=${encodedMessage}`, '_blank');
-  };
-
-  const filteredProducts = products.filter((p) => {
-    const matchesCategory =
-      selectedCategory === 'All' ||
-      p.category?.toLowerCase() === selectedCategory.toLowerCase();
-    const matchesSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  const renderCartContent = () => (
-    <>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <ShoppingBag className="h-5 w-5 text-green-600" /> Your Cart
-        </h2>
-        <button
-          onClick={() => setIsCartOpen(false)}
-          className="lg:hidden p-1 text-gray-500 hover:text-gray-800"
-        >
-          <X className="h-6 w-6" />
-        </button>
-      </div>
-
-      {cart.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">Your cart is currently empty.</div>
-      ) : (
-        <div className="space-y-4">
-          <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-4">
-            {cart.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between border-b pb-3 gap-2"
-              >
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm text-gray-900">{item.name}</h4>
-                  <span className="text-xs text-gray-500">
-                    ₦{item.price.toLocaleString()} / {item.unit}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => updateQuantity(item.id, -1)}
-                    className="p-1 text-gray-500 hover:bg-gray-100 rounded border"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.id, 1)}
-                    className="p-1 text-gray-500 hover:bg-gray-100 rounded border"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={() => removeFromCart(item.id)}
-                    className="p-1 text-red-500 hover:bg-red-50 rounded ml-1"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="pt-4 border-t">
-            <div className="flex justify-between items-center text-lg font-bold mb-4">
-              <span>Total:</span>
-              <span className="text-green-700">₦{cartTotal.toLocaleString()}</span>
-            </div>
-
-            <button
-              onClick={handleCheckout}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow"
-            >
-              <MessageCircle className="h-5 w-5" /> Order via WhatsApp
-            </button>
-          </div>
-        </div>
-      )}
-    </>
+  const subtotal = cartDetails.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-green-700 text-white sticky top-0 z-20 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Store className="h-7 w-7" />
-            <h1 className="text-2xl font-bold tracking-tight">Maitama Market</h1>
-          </div>
-
+    <div className="min-h-screen bg-gray-50 text-gray-800 pb-20">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-green-700 text-white shadow-md">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold tracking-wide">Maitama Market</h1>
           <button
-            onClick={() => setIsCartOpen(!isCartOpen)}
-            className="relative p-2 rounded-lg hover:bg-green-800 transition-colors"
-            aria-label="Open Cart"
+            onClick={() => setIsCartOpen(true)}
+            className="relative bg-green-800 px-4 py-2 rounded-lg font-medium hover:bg-green-900 transition flex items-center gap-2"
           >
-            <ShoppingBag className="h-6 w-6" />
-            {totalItemsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-green-950 text-xs font-extrabold h-5 w-5 rounded-full flex items-center justify-center shadow">
-                {totalItemsCount}
+            🛒 Cart
+            {totalCartItemsCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {totalCartItemsCount}
               </span>
             )}
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search fresh produce..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 bg-white shadow-sm text-gray-900"
-            />
-          </div>
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <h2 className="text-2xl font-bold mb-6 text-gray-900">Fresh Produce & Groceries</h2>
 
-          <div className="flex flex-wrap gap-2 mb-6">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  selectedCategory === cat
-                    ? 'bg-green-600 text-white shadow-sm'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {loading ? (
-            <div className="text-center py-12 text-gray-500">Loading products...</div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No products found in "{selectedCategory}".
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredProducts.map((product) => (
+        {loading ? (
+          <p className="text-gray-500">Loading products...</p>
+        ) : products.length === 0 ? (
+          <p className="text-gray-500">No available products at the moment.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {products.map((product) => {
+              const qty = cart[product.id] || 0;
+              return (
                 <div
                   key={product.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col justify-between"
                 >
                   <div>
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="w-full h-40 object-cover"
+                        className="w-full h-40 object-cover rounded-lg mb-3"
                       />
                     ) : (
-                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                      <div className="w-full h-40 bg-gray-100 rounded-lg mb-3 flex items-center justify-center text-gray-400">
                         No Image
                       </div>
                     )}
-                    <div className="p-4">
-                      <span className="text-xs text-green-700 font-bold uppercase tracking-wider bg-green-50 px-2 py-0.5 rounded">
-                        {product.category || 'General'}
+                    <h3 className="font-semibold text-lg text-gray-900">{product.name}</h3>
+                    <p className="text-sm text-gray-500 mb-2">{product.category}</p>
+                    <p className="text-green-700 font-bold">
+                      ₦{product.price.toLocaleString()}{" "}
+                      <span className="text-xs text-gray-500 font-normal">
+                        / {product.unit}
                       </span>
-                      <h3 className="font-semibold text-gray-900 mt-2">{product.name}</h3>
-                      {product.description && (
-                        <p className="text-xs text-gray-500 mt-1">{product.description}</p>
-                      )}
-                    </div>
+                    </p>
                   </div>
 
-                  <div className="p-4 pt-0 flex items-center justify-between mt-2">
-                    <div>
-                      <span className="text-lg font-bold text-gray-900">
-                        ₦{product.price?.toLocaleString()}
-                      </span>
-                      <span className="text-xs text-gray-500"> / {product.unit}</span>
-                    </div>
-                    <button
-                      onClick={() => addToCart(product)}
-                      className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" /> Add
-                    </button>
+                  <div className="mt-4">
+                    {qty === 0 ? (
+                      <button
+                        onClick={() => updateQuantity(product.id, 1)}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 rounded-lg transition"
+                      >
+                        Add to Order
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-between bg-gray-100 rounded-lg p-1">
+                        <button
+                          onClick={() => updateQuantity(product.id, -1)}
+                          className="w-8 h-8 bg-white rounded-md font-bold text-gray-700 hover:bg-gray-200"
+                        >
+                          -
+                        </button>
+                        <span className="font-bold text-gray-800">{qty}</span>
+                        <button
+                          onClick={() => updateQuantity(product.id, 1)}
+                          className="w-8 h-8 bg-white rounded-md font-bold text-gray-700 hover:bg-gray-200"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
 
-        <div className="hidden lg:block bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-fit sticky top-24">
-          {renderCartContent()}
-        </div>
-      </div>
-
+      {/* Cart Drawer Overlay */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
+        <div className="fixed inset-0 z-40 flex justify-end">
           <div
             onClick={() => setIsCartOpen(false)}
-            className="fixed inset-0 bg-black/50 transition-opacity"
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           />
-          <div className="relative w-full max-w-md bg-white h-full p-6 shadow-xl flex flex-col justify-between z-10 overflow-y-auto">
-            {renderCartContent()}
+          <div className="relative z-50 w-full max-w-md bg-white h-full p-6 shadow-2xl flex flex-col justify-between text-black">
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">Your Order Cart</h2>
+                <button
+                  onClick={() => setIsCartOpen(false)}
+                  className="text-gray-500 hover:text-black text-xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {cartDetails.length === 0 ? (
+                <p className="text-gray-500">Your cart is empty.</p>
+              ) : (
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                  {cartDetails.map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center border-b pb-3"
+                    >
+                      <div>
+                        <h4 className="font-semibold">{item.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          {item.quantity} {item.unit} × ₦{item.price.toLocaleString()}
+                        </p>
+                      </div>
+                      <p className="font-bold">
+                        ₦{(item.price * item.quantity).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {cartDetails.length > 0 && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Subtotal:</span>
+                  <span>₦{subtotal.toLocaleString()}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    setIsCheckoutOpen(true);
+                  }}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition"
+                >
+                  Order via WhatsApp
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* Interactive Delivery Info Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        cartItems={cartDetails}
+      />
     </div>
   );
 }
