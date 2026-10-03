@@ -8,8 +8,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const DEFAULT_FALLBACK_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maitama2026";
-// Master PIN required exclusively to alter the dashboard password
-const MASTER_PIN = "9988";
 
 const CATEGORIES = [
   "Fruits",
@@ -103,25 +101,28 @@ export default function AdminPage() {
     e.preventDefault();
     setPasswordChangeMsg("");
 
-    // Validate Master Security PIN
-    if (pinInput !== MASTER_PIN) {
-      setPasswordChangeMsg("❌ Invalid Master Security PIN! Only store owners can change the password.");
+    if (!pinInput.trim()) {
+      setPasswordChangeMsg("❌ Please enter the Master Security PIN.");
       return;
     }
 
     if (!newPassword.trim()) {
-      setPasswordChangeMsg("❌ Please enter a valid new password.");
+      setPasswordChangeMsg("❌ Please enter a new password.");
       return;
     }
 
     setUpdatingPassword(true);
 
-    const { error } = await supabase
-      .from("admin_settings")
-      .upsert({ id: 1, admin_password: newPassword.trim() });
+    // Call secure Supabase RPC function (verifies PIN on server side)
+    const { data: success, error } = await supabase.rpc("update_admin_password_with_pin", {
+      p_pin: pinInput.trim(),
+      p_new_password: newPassword.trim(),
+    });
 
     if (error) {
-      setPasswordChangeMsg(`❌ Failed to update password: ${error.message}`);
+      setPasswordChangeMsg(`❌ Error updating password: ${error.message}`);
+    } else if (!success) {
+      setPasswordChangeMsg("❌ Invalid Master Security PIN! Only store owners can change the password.");
     } else {
       setCurrentDbPassword(newPassword.trim());
       setPasswordChangeMsg("✅ Admin password updated successfully!");
