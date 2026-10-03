@@ -31,6 +31,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   useEffect(() => {
     fetchProducts();
@@ -61,6 +62,16 @@ export default function Home() {
       return { ...prev, [productId]: updated };
     });
   };
+
+  const categories = [
+    "All",
+    ...Array.from(new Set(products.map((p) => p.category).filter(Boolean))),
+  ];
+
+  const filteredProducts =
+    selectedCategory === "All"
+      ? products
+      : products.filter((p) => p.category === selectedCategory);
 
   const totalCartItemsCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
@@ -104,15 +115,34 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900">Fresh Produce & Groceries</h2>
+        <h2 className="text-2xl font-bold mb-4 text-gray-900">Fresh Produce & Groceries</h2>
+
+        {/* Category Filters */}
+        {!loading && categories.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${
+                  selectedCategory === cat
+                    ? "bg-green-700 text-white shadow-sm"
+                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-100"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <p className="text-gray-500">Loading products...</p>
-        ) : products.length === 0 ? (
-          <p className="text-gray-500">No available products at the moment.</p>
+        ) : filteredProducts.length === 0 ? (
+          <p className="text-gray-500">No products available in this category.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => {
+            {filteredProducts.map((product) => {
               const qty = cart[product.id] || 0;
               return (
                 <div
