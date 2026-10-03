@@ -8,6 +8,16 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Fixed list of categories matching Admin panel exactly
+const CATEGORIES = [
+  "All",
+  "Fruits",
+  "Vegetables",
+  "Tubers",
+  "Spices & Seasonings",
+  "Grains & Oils",
+];
+
 interface Product {
   id: string;
   name: string;
@@ -63,15 +73,13 @@ export default function Home() {
     });
   };
 
-  const categories = [
-    "All",
-    ...Array.from(new Set(products.map((p) => p.category).filter(Boolean))),
-  ];
-
+  // Case-insensitive filtering so older database entries ('fruits', 'vegetables') still match
   const filteredProducts =
     selectedCategory === "All"
       ? products
-      : products.filter((p) => p.category === selectedCategory);
+      : products.filter(
+          (p) => p.category?.toLowerCase() === selectedCategory.toLowerCase()
+        );
 
   const totalCartItemsCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
@@ -117,24 +125,22 @@ export default function Home() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-4 text-gray-900">Fresh Produce & Groceries</h2>
 
-        {/* Category Filters */}
-        {!loading && categories.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${
-                  selectedCategory === cat
-                    ? "bg-green-700 text-white shadow-sm"
-                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-100"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Category Filters matching Admin dropdown */}
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-medium capitalize whitespace-nowrap transition ${
+                selectedCategory === cat
+                  ? "bg-green-700 text-white shadow-sm"
+                  : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <p className="text-gray-500">Loading products...</p>
@@ -162,7 +168,7 @@ export default function Home() {
                       </div>
                     )}
                     <h3 className="font-semibold text-lg text-gray-900">{product.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2">{product.category}</p>
+                    <p className="text-sm text-gray-500 mb-2 capitalize">{product.category}</p>
                     <p className="text-green-700 font-bold">
                       ₦{product.price.toLocaleString()}{" "}
                       <span className="text-xs text-gray-500 font-normal">
