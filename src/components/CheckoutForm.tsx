@@ -19,42 +19,46 @@ export default function CheckoutForm() {
 
   // Sample items — update/connect this with your actual cart state when ready
   const cartItems: CartItem[] = [
-    { name: "Oranges", quantity: 2, unit: "piece", price: 600 },
-    { name: "Mango", quantity: 1, unit: "piece", price: 1000 },
+    { name: "Fresh Tomatoes", quantity: 3, unit: "basket", price: 2500 },
+    { name: "Sweet Oranges", quantity: 1, unit: "bag", price: 4000 },
   ];
 
   const handleWhatsAppCheckout = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const orderId = `MM-${Math.floor(1000 + Math.random() * 9000)}`;
+    const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const deliveryFee = 1500; // Standard estimated delivery fee
+    const grandTotal = subtotal + deliveryFee;
+
     const itemsSummary = cartItems
       .map(
-        (item, index) =>
-          `${index + 1}. ${item.name} (${item.quantity} ${item.unit}) - ₦${(
+        (item) =>
+          `• *${item.name}* (${item.quantity} ${item.unit}) — ₦${(
             item.price * item.quantity
           ).toLocaleString()}`
       )
       .join("\n");
 
-    const totalAmount = cartItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+    const message = `🛒 *NEW ORDER RECEIVED — Maitama Market*
+Order ID: #${orderId}
 
-    const message = `🛒 *NEW ORDER - MAITAMA MARKET*
+👤 *CUSTOMER DETAILS*
+Name: ${customerName}
+Phone: ${phone}
+Address: ${address}
 
-👤 *Customer Details:*
-• *Name:* ${customerName}
-• *Phone:* ${phone}
-• *Delivery Address:* ${address}
-
-📦 *Order Summary:*
+📦 *ORDER SUMMARY*
 ${itemsSummary}
 
-💰 *Total Amount:* ₦${totalAmount.toLocaleString()}
-💳 *Payment Method:* Transfer before Delivery
-⚠️ *Note:* Delivery fee to be handled by customer upon arrival.
+💳 *PAYMENT & TOTAL*
+Subtotal: ₦${subtotal.toLocaleString()}
+Delivery Fee: ₦${deliveryFee.toLocaleString()}
+*Total Amount: ₦${grandTotal.toLocaleString()}*
+Payment Method: Transfer on Delivery
 
-Please confirm availability and delivery timeframe. Thank you!`;
+🚚 *ACTION REQUIRED*
+Please confirm item availability and dispatch delivery.`;
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${merchantPhoneNumber}?text=${encodedMessage}`;
