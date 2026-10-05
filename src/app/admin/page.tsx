@@ -7,8 +7,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const DEFAULT_FALLBACK_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maitama2026";
-
 const CATEGORIES = [
   "Fruits",
   "Vegetables",
@@ -18,389 +16,155 @@ const CATEGORIES = [
 ];
 
 interface Product {
-  id?: string | number;
+  id: string;
   name: string;
+  category: string;
   price: number;
   unit: string;
-  category: string;
-  image_url?: string;
-  is_available?: boolean;
+  image_url: string;
+  is_available: boolean;
 }
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [authError, setAuthError] = useState("");
-
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [editingPrices, setEditingPrices] = useState<{ [key: string]: number }>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Admin password & PIN state
-  const [currentDbPassword, setCurrentDbPassword] = useState(DEFAULT_FALLBACK_PASSWORD);
-  const [pinInput, setPinInput] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordChangeMsg, setPasswordChangeMsg] = useState("");
-  const [updatingPassword, setUpdatingPassword] = useState(false);
-
+  // New product form
   const [name, setName] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0]);
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState("piece");
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-
-  const fetchAdminPassword = async () => {
-    const { data, error } = await supabase
-      .from("admin_settings")
-      .select("admin_password")
-      .eq("id", 1)
-      .single();
-
-    if (!error && data?.admin_password) {
-      setCurrentDbPassword(data.admin_password);
-    }
-  };
+  const [imageUrl, setImageUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchAdminPassword();
-    const session = localStorage.getItem("maitama_admin_auth");
-    if (session === "true") {
-      setIsAuthenticated(true);
-    }
+    fetchProducts();
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError("");
-
-    const { data } = await supabase
-      .from("admin_settings")
-      .select("admin_password")
-      .eq("id", 1)
-      .single();
-
-    const activePassword = data?.admin_password || currentDbPassword;
-
-    if (passwordInput === activePassword) {
-      setIsAuthenticated(true);
-      localStorage.setItem("maitama_admin_auth", "true");
-      setAuthError("");
-    } else {
-      setAuthError("❌ Incorrect admin password!");
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("maitama_admin_auth");
-    setIsAuthenticated(false);
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordChangeMsg("");
-
-    if (!pinInput.trim()) {
-      setPasswordChangeMsg("❌ Please enter the Master Security PIN.");
-      return;
-    }
-
-    if (!newPassword.trim()) {
-      setPasswordChangeMsg("❌ Please enter a new password.");
-      return;
-    }
-
-    setUpdatingPassword(true);
-
-    // Call secure Supabase RPC function (verifies PIN on server side)
-    const { data: success, error } = await supabase.rpc("update_admin_password_with_pin", {
-      p_pin: pinInput.trim(),
-      p_new_password: newPassword.trim(),
-    });
-
-    if (error) {
-      setPasswordChangeMsg(`❌ Error updating password: ${error.message}`);
-    } else if (!success) {
-      setPasswordChangeMsg("❌ Invalid Master Security PIN! Only store owners can change the password.");
-    } else {
-      setCurrentDbPassword(newPassword.trim());
-      setPasswordChangeMsg("✅ Admin password updated successfully!");
-      setNewPassword("");
-      setPinInput("");
-    }
-    setUpdatingPassword(false);
-  };
-
-  const fetchProducts = async () => {
+  async function fetchProducts() {
     setLoading(true);
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .order("id", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (!error && data) {
       setProducts(data);
+      const initialPrices: { [key: string]: number } = {};
+      data.forEach((p) => {
+        initialPrices[p.id] = p.price;
+      });
+      setEditingPrices(initialPrices);
     }
     setLoading(false);
+  }
+
+  const handleToggleAvailability = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from("products")
+      .update({ is_available: !currentStatus })
+      .eq("id", id);
+
+    if (!error) {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_available: !currentStatus } : p))
+      );
+    }
   };
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProducts();
-    }
-  }, [isAuthenticated]);
-
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setMessage("");
-
-    let uploadedImageUrl = "https://via.placeholder.com/150";
-
-    if (imageFile) {
-      const fileExt = imageFile.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(filePath, imageFile);
-
-      if (uploadError) {
-        setMessage(`❌ Image upload failed: ${uploadError.message}`);
-        setSaving(false);
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from("product-images")
-        .getPublicUrl(filePath);
-
-      uploadedImageUrl = publicUrlData.publicUrl;
-    }
-
-    const newProduct = {
-      name,
-      price: parseFloat(price),
-      unit,
-      category,
-      image_url: uploadedImageUrl,
-      is_available: isAvailable,
-    };
-
-    const { error } = await supabase.from("products").insert([newProduct]);
-
-    if (error) {
-      setMessage(`❌ Error adding product: ${error.message}`);
-    } else {
-      setMessage("✅ Product added successfully!");
-      setName("");
-      setPrice("");
-      setImageFile(null);
-      setIsAvailable(true);
-      fetchProducts();
-    }
-    setSaving(false);
+  const handlePriceChange = (id: string, newPrice: string) => {
+    setEditingPrices((prev) => ({
+      ...prev,
+      [id]: Number(newPrice),
+    }));
   };
 
-  const handleToggleAvailability = async (id: string | number, currentStatus: boolean) => {
-    const newStatus = !currentStatus;
-
-    setProducts((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, is_available: newStatus } : item))
-    );
+  const handleSavePrice = async (id: string) => {
+    setSavingId(id);
+    const newPrice = editingPrices[id];
 
     const { error } = await supabase
       .from("products")
-      .update({ is_available: newStatus })
+      .update({ price: newPrice })
       .eq("id", id);
 
     if (error) {
-      alert(`Error updating availability: ${error.message}`);
-      fetchProducts();
+      alert("Failed to update price");
+    } else {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, price: newPrice } : p))
+      );
+      alert("Price updated successfully!");
     }
+    setSavingId(null);
   };
 
-  const handleDeleteProduct = async (id: string | number) => {
+  const handleDeleteProduct = async (id: string) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
 
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (!error) {
-      fetchProducts();
+      setProducts((prev) => prev.filter((p) => p.id !== id));
     } else {
-      alert(`Error deleting product: ${error.message}`);
+      alert("Error deleting product");
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 text-gray-800">
-        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md border border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Maitama Market Admin</h1>
-          <p className="text-sm text-gray-500 mb-6 text-center">Enter your security password to access control</p>
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
 
-          {authError && (
-            <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm text-center">
-              {authError}
-            </div>
-          )}
+    const { error } = await supabase.from("products").insert([
+      {
+        name,
+        category,
+        price: Number(price),
+        unit,
+        image_url: imageUrl,
+        is_available: true,
+      },
+    ]);
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Password</label>
-              <input
-                type="password"
-                required
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Enter admin password"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-md transition"
-            >
-              Unlock Dashboard
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <a href="/" className="text-xs text-gray-500 hover:underline">← Back to Storefront</a>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    if (!error) {
+      setName("");
+      setPrice("");
+      setImageUrl("");
+      fetchProducts();
+    } else {
+      alert("Error adding product");
+    }
+    setSubmitting(false);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-gray-800">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Maitama Market Admin</h1>
-            <p className="text-sm text-gray-500">Manage products and inventory</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <a href="/" className="text-sm font-medium text-green-600 hover:text-green-700 underline">
-              ← View Main Store
-            </a>
-            <button
-              onClick={handleLogout}
-              className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1.5 px-3 rounded"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Change Password Form (Owner PIN Protected) */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-lg font-bold mb-1 text-gray-800">🔒 Security Settings (Owner Only)</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            Requires the Master Security PIN to change the main admin login password.
-          </p>
-
-          {passwordChangeMsg && (
-            <div className={`p-3 mb-4 rounded text-sm ${passwordChangeMsg.includes("❌") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
-              {passwordChangeMsg}
-            </div>
-          )}
-
-          <form onSubmit={handleChangePassword} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Master PIN</label>
-              <input
-                type="password"
-                required
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Owner PIN"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">New Login Password</label>
-              <input
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <button
-                type="submit"
-                disabled={updatingPassword}
-                className="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2.5 px-4 rounded-md transition text-sm disabled:opacity-50"
-              >
-                {updatingPassword ? "Updating..." : "Update Password"}
-              </button>
-            </div>
-          </form>
-        </div>
+    <div className="min-h-screen bg-gray-50 text-gray-800 p-6">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
 
         {/* Add Product Form */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-lg font-bold mb-4 text-gray-800">➕ Add New Product</h2>
-
-          {message && (
-            <div className={`p-3 mb-4 rounded text-sm ${message.includes("❌") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
-              {message}
-            </div>
-          )}
-
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Add New Product</h2>
           <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Product Name</label>
+              <label className="block text-sm font-medium text-gray-700">Product Name</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Fresh Oranges"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
+                placeholder="e.g. Mangoes"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Price (₦)</label>
-              <input
-                type="number"
-                required
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="e.g. 600"
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Unit</label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-              >
-                <option value="piece">piece</option>
-                <option value="kg">kg</option>
-                <option value="basket">basket</option>
-                <option value="bunch">bunch</option>
-                <option value="crate">crate</option>
-                <option value="bag">bag</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Category</label>
+              <label className="block text-sm font-medium text-gray-700">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full p-2.5 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -410,89 +174,125 @@ export default function AdminPage() {
               </select>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">Product Photo (Direct Upload)</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Price (₦)</label>
               <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                className="w-full p-2 border rounded-md text-sm text-black border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                type="number"
+                required
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
+                placeholder="700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Unit</label>
+              <input
+                type="text"
+                required
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
+                placeholder="e.g. piece, kg, basket"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700">Image URL</label>
+              <input
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
+                placeholder="https://images.unsplash.com/..."
               />
             </div>
 
             <div className="md:col-span-2">
               <button
                 type="submit"
-                disabled={saving}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition duration-200 disabled:opacity-50"
+                disabled={submitting}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-2 rounded-lg transition"
               >
-                {saving ? "Uploading & Saving..." : "Save Product to Store"}
+                {submitting ? "Adding..." : "Add Product"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Inventory List with Availability Toggle */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-lg font-bold mb-4 text-gray-800">📦 Inventory List ({products.length})</h2>
-
+        {/* Product Inventory & Price List */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Inventory & Price Control</h2>
           {loading ? (
-            <p className="text-sm text-gray-500">Loading inventory from Supabase...</p>
-          ) : products.length === 0 ? (
-            <p className="text-sm text-gray-500">No products found. Add your first item above!</p>
+            <p className="text-gray-500">Loading products...</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                  <tr>
-                    <th className="p-3">Image</th>
-                    <th className="p-3">Product</th>
-                    <th className="p-3">Category</th>
-                    <th className="p-3">Price</th>
-                    <th className="p-3">Availability</th>
-                    <th className="p-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {products.map((item) => {
-                    const available = item.is_available !== false;
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="p-3">
-                          <img
-                            src={item.image_url || "https://via.placeholder.com/150"}
-                            alt={item.name}
-                            className="w-10 h-10 object-cover rounded"
-                          />
-                        </td>
-                        <td className="p-3 font-medium text-gray-900">{item.name}</td>
-                        <td className="p-3 text-gray-600">{item.category || "N/A"}</td>
-                        <td className="p-3 font-semibold text-green-700">₦{item.price?.toLocaleString()} / {item.unit}</td>
-                        <td className="p-3">
-                          <button
-                            onClick={() => item.id && handleToggleAvailability(item.id, available)}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition flex items-center space-x-1 ${
-                              available
-                                ? "bg-green-100 text-green-800 border-green-300 hover:bg-green-200"
-                                : "bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-300"
-                            }`}
-                          >
-                            <span>{available ? "🟢 In Stock" : "⚪ Out of Stock"}</span>
-                          </button>
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={() => item.id && handleDeleteProduct(item.id)}
-                            className="text-red-600 hover:text-red-800 font-medium text-xs bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded transition"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              {products.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex flex-wrap md:flex-nowrap items-center justify-between border-b pb-4 gap-4"
+                >
+                  <div className="flex items-center gap-3 w-full md:w-1/3">
+                    {p.image_url ? (
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="w-12 h-12 object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-400">
+                        No Img
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{p.name}</h3>
+                      <p className="text-xs text-gray-500 capitalize">{p.category}</p>
+                    </div>
+                  </div>
+
+                  {/* Inline Price Editing Box */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-green-700">₦</span>
+                    <input
+                      type="number"
+                      value={editingPrices[p.id] ?? p.price}
+                      onChange={(e) => handlePriceChange(p.id, e.target.value)}
+                      className="w-24 p-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    />
+                    <span className="text-xs text-gray-500">/ {p.unit}</span>
+                    
+                    <button
+                      onClick={() => handleSavePrice(p.id)}
+                      disabled={savingId === p.id}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition"
+                    >
+                      {savingId === p.id ? "Saving..." : "Save Price"}
+                    </button>
+                  </div>
+
+                  {/* Availability & Delete Actions */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleAvailability(p.id, p.is_available)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        p.is_available
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {p.is_available ? "In Stock" : "Out of Stock"}
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteProduct(p.id)}
+                      className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1 rounded-lg text-xs font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
