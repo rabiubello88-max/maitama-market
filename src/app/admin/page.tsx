@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [editingPrices, setEditingPrices] = useState<{ [key: string]: number }>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // New product form
+  // New product form states
   const [name, setName] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [price, setPrice] = useState("");
@@ -60,6 +60,18 @@ export default function AdminPage() {
     }
     setLoading(false);
   }
+
+  // Handle local image file upload and convert to Data URL
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleToggleAvailability = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase
@@ -198,15 +210,28 @@ export default function AdminPage() {
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Image URL</label>
+            {/* File Upload Field */}
+            <div className="md:col-span-2 space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Upload Product Image
+              </label>
               <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
-                placeholder="https://images.unsplash.com/..."
+                type="file"
+                accept="image/*"
+                onChange={handleImageFileChange}
+                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
               />
+
+              {imageUrl && (
+                <div className="flex items-center gap-3 mt-2">
+                  <img
+                    src={imageUrl}
+                    alt="Preview"
+                    className="w-16 h-16 object-cover rounded-lg border"
+                  />
+                  <span className="text-xs text-green-600 font-medium">Image ready for upload</span>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -261,7 +286,7 @@ export default function AdminPage() {
                       className="w-24 p-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     />
                     <span className="text-xs text-gray-500">/ {p.unit}</span>
-                    
+
                     <button
                       onClick={() => handleSavePrice(p.id)}
                       disabled={savingId === p.id}
