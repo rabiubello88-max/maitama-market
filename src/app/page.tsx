@@ -8,7 +8,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Fixed list of categories matching Admin panel exactly
 const CATEGORIES = [
   "All",
   "Fruits",
@@ -42,6 +41,7 @@ export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     fetchProducts();
@@ -73,13 +73,15 @@ export default function Home() {
     });
   };
 
-  // Case-insensitive filtering so older database entries ('fruits', 'vegetables') still match
-  const filteredProducts =
-    selectedCategory === "All"
-      ? products
-      : products.filter(
-          (p) => p.category?.toLowerCase() === selectedCategory.toLowerCase()
-        );
+  const filteredProducts = products.filter((p) => {
+    const matchesCategory =
+      selectedCategory === "All" ||
+      p.category?.toLowerCase() === selectedCategory.toLowerCase();
+    const matchesSearch = p.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const totalCartItemsCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
@@ -123,9 +125,25 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-4 text-gray-900">Fresh Produce & Groceries</h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Fresh Produce & Groceries
+          </h2>
 
-        {/* Category Filters matching Admin dropdown */}
+          {/* Search Input */}
+          <div className="relative w-full md:w-72">
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-green-500 focus:outline-none"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+          </div>
+        </div>
+
+        {/* Category Filters */}
         <div className="flex gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
           {CATEGORIES.map((cat) => (
             <button
@@ -145,7 +163,7 @@ export default function Home() {
         {loading ? (
           <p className="text-gray-500">Loading products...</p>
         ) : filteredProducts.length === 0 ? (
-          <p className="text-gray-500">No products available in this category.</p>
+          <p className="text-gray-500">No products found matching your search.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredProducts.map((product) => {
@@ -167,8 +185,12 @@ export default function Home() {
                         No Image
                       </div>
                     )}
-                    <h3 className="font-semibold text-lg text-gray-900">{product.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2 capitalize">{product.category}</p>
+                    <h3 className="font-semibold text-lg text-gray-900">
+                      {product.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-2 capitalize">
+                      {product.category}
+                    </p>
                     <p className="text-green-700 font-bold">
                       ₦{product.price.toLocaleString()}{" "}
                       <span className="text-xs text-gray-500 font-normal">
@@ -210,7 +232,7 @@ export default function Home() {
         )}
       </main>
 
-      {/* Cart Drawer Overlay */}
+      {/* Cart Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-40 flex justify-end">
           <div
@@ -241,7 +263,8 @@ export default function Home() {
                       <div>
                         <h4 className="font-semibold">{item.name}</h4>
                         <p className="text-sm text-gray-500">
-                          {item.quantity} {item.unit} × ₦{item.price.toLocaleString()}
+                          {item.quantity} {item.unit} × ₦
+                          {item.price.toLocaleString()}
                         </p>
                       </div>
                       <p className="font-bold">
@@ -274,7 +297,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Interactive Delivery Info Modal */}
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
