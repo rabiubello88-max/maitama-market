@@ -13,6 +13,7 @@ const CATEGORIES = [
   "Tubers",
   "Spices & Seasonings",
   "Grains & Oils",
+  "Protein & Seafood",
 ];
 
 interface Product {
@@ -28,10 +29,14 @@ interface Product {
 export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [editingPrices, setEditingPrices] = useState<{ [key: string]: number }>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // New product form states
+  // Edit Modal/State
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Form States (Used for both Add & Edit)
   const [name, setName] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [price, setPrice] = useState("");
@@ -61,7 +66,7 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  // Handle local image file upload and convert to Data URL
+  // File to Base64 conversion
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -124,41 +129,105 @@ export default function AdminPage() {
     }
   };
 
-  const handleAddProduct = async (e: React.FormEvent) => {
+  // Open Edit Form
+  const startEditing = (p: Product) => {
+    setEditingProduct(p);
+    setName(p.name);
+    setCategory(p.category);
+    setPrice(p.price.toString());
+    setUnit(p.unit);
+    setImageUrl(p.image_url || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelEditing = () => {
+    setEditingProduct(null);
+    setName("");
+    setPrice("");
+    setUnit("piece");
+    setImageUrl("");
+    setCategory(CATEGORIES[0]);
+  };
+
+  // Handle Form Submit for both Add & Full Edit
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const { error } = await supabase.from("products").insert([
-      {
-        name,
-        category,
-        price: Number(price),
-        unit,
-        image_url: imageUrl,
-        is_available: true,
-      },
-    ]);
+    if (editingProduct) {
+      // Update existing item
+      const { error } = await supabase
+        .from("products")
+        .update({
+          name,
+          category,
+          price: Number(price),
+          unit,
+          image_url: imageUrl,
+        })
+        .eq("id", editingProduct.id);
 
-    if (!error) {
-      setName("");
-      setPrice("");
-      setImageUrl("");
-      fetchProducts();
+      if (!error) {
+        cancelEditing();
+        fetchProducts();
+      } else {
+        alert("Error updating product details");
+      }
     } else {
-      alert("Error adding product");
+      // Add new item
+      const { error } = await supabase.from("products").insert([
+        {
+          name,
+          category,
+          price: Number(price),
+          unit,
+          image_url: imageUrl,
+          is_available: true,
+        },
+      ]);
+
+      if (!error) {
+        setName("");
+        setPrice("");
+        setImageUrl("");
+        fetchProducts();
+      } else {
+        alert("Error adding product");
+      }
     }
     setSubmitting(false);
   };
+
+  // Filtered list based on Search
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-6">
       <div className="max-w-5xl mx-auto space-y-8">
         <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
 
-        {/* Add Product Form */}
+        {/* Add / Edit Product Form */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Add New Product</h2>
-          <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              {editingProduct ? `Edit Product: ${editingProduct.name}` : "Add New Product"}
+            </h2>
+            {editingProduct && (
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmitForm} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Product Name</label>
               <input
@@ -167,7 +236,7 @@ export default function AdminPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full mt-1 p-2 border border-gray-300 rounded-lg text-black"
-                placeholder="e.g. Mangoes"
+                placeholder="e.g. Fresh Salmon"
               />
             </div>
 
@@ -210,7 +279,7 @@ export default function AdminPage() {
               />
             </div>
 
-            {/* File Upload Field */}
+            {/* Image File Upload */}
             <div className="md:col-span-2 space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 Upload Product Image
@@ -229,31 +298,58 @@ export default function AdminPage() {
                     alt="Preview"
                     className="w-16 h-16 object-cover rounded-lg border"
                   />
-                  <span className="text-xs text-green-600 font-medium">Image ready for upload</span>
+                  <span className="text-xs text-green-600 font-medium">Image attached</span>
                 </div>
               )}
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 flex gap-3">
               <button
                 type="submit"
                 disabled={submitting}
                 className="bg-green-600 hover:bg-green-700 text-white font-medium px-6 py-2 rounded-lg transition"
               >
-                {submitting ? "Adding..." : "Add Product"}
+                {submitting
+                  ? "Saving..."
+                  : editingProduct
+                  ? "Update Product Details"
+                  : "Add Product"}
               </button>
+              {editingProduct && (
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </form>
         </div>
 
-        {/* Product Inventory & Price List */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900">Inventory & Price Control</h2>
+        {/* Inventory Table & Search Bar */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">Inventory & Controls</h2>
+
+            {/* Search Bar */}
+            <input
+              type="text"
+              placeholder="Search inventory by name or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full md:w-80 p-2 border border-gray-300 rounded-lg text-sm text-black focus:ring-2 focus:ring-green-500 focus:outline-none"
+            />
+          </div>
+
           {loading ? (
-            <p className="text-gray-500">Loading products...</p>
+            <p className="text-gray-500">Loading inventory...</p>
+          ) : filteredProducts.length === 0 ? (
+            <p className="text-gray-500 text-sm">No products matched your search.</p>
           ) : (
             <div className="space-y-4">
-              {products.map((p) => (
+              {filteredProducts.map((p) => (
                 <div
                   key={p.id}
                   className="flex flex-wrap md:flex-nowrap items-center justify-between border-b pb-4 gap-4"
@@ -283,7 +379,7 @@ export default function AdminPage() {
                       type="number"
                       value={editingPrices[p.id] ?? p.price}
                       onChange={(e) => handlePriceChange(p.id, e.target.value)}
-                      className="w-24 p-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                      className="w-24 p-1.5 border border-gray-300 rounded-lg font-bold text-gray-900 focus:ring-2 focus:ring-green-500 focus:outline-none text-sm"
                     />
                     <span className="text-xs text-gray-500">/ {p.unit}</span>
 
@@ -296,7 +392,7 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  {/* Availability & Delete Actions */}
+                  {/* Item Actions */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleToggleAvailability(p.id, p.is_available)}
@@ -309,6 +405,15 @@ export default function AdminPage() {
                       {p.is_available ? "In Stock" : "Out of Stock"}
                     </button>
 
+                    {/* Edit Item Button */}
+                    <button
+                      onClick={() => startEditing(p)}
+                      className="bg-amber-50 text-amber-700 hover:bg-amber-100 px-3 py-1 rounded-lg text-xs font-medium"
+                    >
+                      Edit
+                    </button>
+
+                    {/* Delete Item Button */}
                     <button
                       onClick={() => handleDeleteProduct(p.id)}
                       className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1 rounded-lg text-xs font-medium"
