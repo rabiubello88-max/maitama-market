@@ -31,7 +31,22 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  // Refresh auth session
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isLoginPage = request.nextUrl.pathname === "/admin/login";
+
+  // If trying to access protected admin pages without session
+  if (!user && !isLoginPage) {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
+  // If logged in and hitting login page
+  if (user && isLoginPage) {
+    return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+  }
 
   return response;
 }
