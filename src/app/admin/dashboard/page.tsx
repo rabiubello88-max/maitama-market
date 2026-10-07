@@ -36,10 +36,10 @@ export default function AdminDashboardPage() {
   const [editingPrices, setEditingPrices] = useState<{ [key: string]: number }>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Edit Modal/State
+  // Edit State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // Form States (Used for both Add & Edit)
+  // Form States (Add & Edit)
   const [name, setName] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [price, setPrice] = useState("");
@@ -47,7 +47,7 @@ export default function AdminDashboardPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Password Change Modal States
+  // Password Modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pin, setPin] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -87,7 +87,6 @@ export default function AdminDashboardPage() {
     setLoading(false);
   }
 
-  // File to Base64 conversion
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -150,7 +149,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Open Edit Form
   const startEditing = (p: Product) => {
     setEditingProduct(p);
     setName(p.name);
@@ -170,7 +168,6 @@ export default function AdminDashboardPage() {
     setCategory(CATEGORIES[0]);
   };
 
-  // Handle Form Submit for both Add & Full Edit
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -245,7 +242,6 @@ export default function AdminDashboardPage() {
     router.push("/admin/login");
   };
 
-  // Filtered list based on Search
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -281,7 +277,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Add / Edit Product Form */}
+        {/* Add / Edit Form */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-900">
@@ -350,7 +346,6 @@ export default function AdminDashboardPage() {
               />
             </div>
 
-            {/* Image File Upload */}
             <div className="md:col-span-2 space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 Upload Product Image
@@ -399,12 +394,11 @@ export default function AdminDashboardPage() {
           </form>
         </div>
 
-        {/* Inventory Table & Search Bar */}
+        {/* Inventory List with Search & Actions */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-xl font-semibold text-gray-900">Inventory & Controls</h2>
 
-            {/* Search Bar */}
             <input
               type="text"
               placeholder="Search inventory by name or category..."
@@ -443,7 +437,6 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  {/* Inline Price Editing Box */}
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-green-700">₦</span>
                     <input
@@ -464,7 +457,6 @@ export default function AdminDashboardPage() {
                     </button>
                   </div>
 
-                  {/* Item Actions */}
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -478,7 +470,6 @@ export default function AdminDashboardPage() {
                       {p.is_available ? "In Stock" : "Out of Stock"}
                     </button>
 
-                    {/* Edit Item Button */}
                     <button
                       type="button"
                       onClick={() => startEditing(p)}
@@ -487,7 +478,6 @@ export default function AdminDashboardPage() {
                       Edit
                     </button>
 
-                    {/* Delete Item Button */}
                     <button
                       type="button"
                       onClick={() => handleDeleteProduct(p.id)}
@@ -503,7 +493,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Change Password Modal */}
+      {/* Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full space-y-4 shadow-xl">
