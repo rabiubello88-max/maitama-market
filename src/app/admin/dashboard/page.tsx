@@ -53,23 +53,37 @@ export default function AdminDashboardPage() {
 
   const router = useRouter();
 
+  // Stabilized Session & Auth Check
   useEffect(() => {
+    let mounted = true;
+
     async function checkAuthAndFetch() {
       const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (error || !user) {
-        await supabase.auth.signOut();
-        router.push("/admin/login");
+      if (!session) {
+        if (mounted) router.push("/admin/login");
         return;
       }
 
-      fetchProducts();
+      if (mounted) fetchProducts();
     }
 
     checkAuthAndFetch();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        if (mounted) router.push("/admin/login");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   async function fetchProducts() {
@@ -264,22 +278,25 @@ export default function AdminDashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
           <div className="flex gap-2">
             <button
-  type="button"
-  onClick={(e) => {
-    e.preventDefault();
-    setShowPasswordModal(true);
-  }}
-  className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium transition"
->
-  Change Password
-</button>
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowPasswordModal(true);
+              }}
+              className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              Change Password
+            </button>
             <button
-  type="button"
-  onClick={handleLogout}
-  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
->
-  Logout
-</button>
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                handleLogout();
+              }}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
@@ -457,6 +474,7 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-gray-500">/ {p.unit}</span>
 
                     <button
+                      type="button"
                       onClick={() => handleSavePrice(p.id)}
                       disabled={savingId === p.id}
                       className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition"
@@ -468,6 +486,7 @@ export default function AdminDashboardPage() {
                   {/* Item Actions */}
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => handleToggleAvailability(p.id, p.is_available)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         p.is_available
@@ -480,6 +499,7 @@ export default function AdminDashboardPage() {
 
                     {/* Edit Item Button */}
                     <button
+                      type="button"
                       onClick={() => startEditing(p)}
                       className="bg-amber-50 text-amber-700 hover:bg-amber-100 px-3 py-1 rounded-lg text-xs font-medium"
                     >
@@ -488,6 +508,7 @@ export default function AdminDashboardPage() {
 
                     {/* Delete Item Button */}
                     <button
+                      type="button"
                       onClick={() => handleDeleteProduct(p.id)}
                       className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1 rounded-lg text-xs font-medium"
                     >
