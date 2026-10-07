@@ -50,10 +50,12 @@ export default function AdminPage() {
   useEffect(() => {
     async function checkAuthAndFetch() {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-      if (!session) {
+      if (error || !user) {
+        await supabase.auth.signOut();
         router.push("/admin/login");
         return;
       }
