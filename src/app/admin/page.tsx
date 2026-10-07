@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -44,9 +45,24 @@ export default function AdminPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const router = useRouter();
+
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    async function checkAuthAndFetch() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.push("/admin/login");
+        return;
+      }
+
+      fetchProducts();
+    }
+
+    checkAuthAndFetch();
+  }, [router]);
 
   async function fetchProducts() {
     setLoading(true);
@@ -198,6 +214,11 @@ export default function AdminPage() {
     setSubmitting(false);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+  };
+
   // Filtered list based on Search
   const filteredProducts = products.filter(
     (p) =>
@@ -208,7 +229,15 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-6">
       <div className="max-w-5xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
+          <button
+            onClick={handleLogout}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+          >
+            Logout
+          </button>
+        </div>
 
         {/* Add / Edit Product Form */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
