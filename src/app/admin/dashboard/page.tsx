@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -26,7 +27,7 @@ interface Product {
   is_available: boolean;
 }
 
-export default function AdminPage() {
+export default function AdminDashboardPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,9 +45,32 @@ export default function AdminPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Password Change Modal States
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pin, setPin] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const router = useRouter();
+
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    async function checkAuthAndFetch() {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        await supabase.auth.signOut();
+        router.push("/admin/login");
+        return;
+      }
+
+      fetchProducts();
+    }
+
+    checkAuthAndFetch();
+  }, [router]);
 
   async function fetchProducts() {
     setLoading(true);
@@ -198,7 +222,35 @@ export default function AdminPage() {
     setSubmitting(false);
   };
 
-  // Filtered list based on Backend Search
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatingPassword(true);
+
+    const res = await fetch("/api/admin/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin, newPassword }),
+    });
+
+    const data = await res.json();
+    setUpdatingPassword(false);
+
+    if (!res.ok) {
+      alert(data.error || "Failed to update password.");
+    } else {
+      alert("Password updated successfully!");
+      setShowPasswordModal(false);
+      setPin("");
+      setNewPassword("");
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+  };
+
+  // Filtered list based on Search
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -208,7 +260,23 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 p-6">
       <div className="max-w-5xl mx-auto space-y-8">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              Change Password
+            </button>
+            <button
+              onClick={handleLogout}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
 
         {/* Add / Edit Product Form */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -427,6 +495,61 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full space-y-4 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900">Change Admin Password</h3>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Security PIN
+                </label>
+                <input
+                  type="password"
+                  required
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg text-black text-sm"
+                  placeholder="Enter security PIN"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg text-black text-sm"
+                  placeholder="Enter new password"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingPassword}
+                  className="px-4 py-2 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium"
+                >
+                  {updatingPassword ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
