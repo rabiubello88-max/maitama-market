@@ -264,17 +264,22 @@ export default function AdminDashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">Admin Product Management</h1>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowPasswordModal(true)}
-              className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium transition"
-            >
-              Change Password
-            </button>
+  type="button"
+  onClick={(e) => {
+    e.preventDefault();
+    setShowPasswordModal(true);
+  }}
+  className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm font-medium transition"
+>
+  Change Password
+</button>
             <button
-              onClick={handleLogout}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
-            >
-              Logout
-            </button>
+  type="button"
+  onClick={handleLogout}
+  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+>
+  Logout
+</button>
           </div>
         </div>
 
