@@ -108,7 +108,7 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-green-700 text-white shadow-md">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold tracking-wide">Abuja Online Fruits, Veg, Protein & Seafood Market</h1>
+          <h1 className="text-xl font-bold tracking-wide">Maitama Online Farmers Market</h1>
           <button
             onClick={() => setIsCartOpen(true)}
             className="relative bg-green-800 px-4 py-2 rounded-lg font-medium hover:bg-green-900 transition flex items-center gap-2"

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Abuja Online Fruits, Veg, Protein and Seafood Market",
+  title: "Maitama Online Farmers Market",
   description: "Fresh fruits, vegetables, spices, seafood, and proteins delivered to your doorstep in Abuja.",
 };
 
