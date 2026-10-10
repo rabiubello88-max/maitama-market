@@ -89,11 +89,7 @@ After the order has been processed and payment confirmed, book a Bolt ride using
 
 The customer pays the actual Bolt delivery fare directly to the Bolt rider upon delivery. The fare is determined when the Bolt ride is booked.
 
-📋 *ACTION REQUIRED*
-1. Confirm item availability.
-2. Process the order and confirm receipt of the grocery payment.
-3. Arrange Bolt delivery using the customer's address.
-4. Ensure the customer pays the Bolt rider separately upon delivery.`;
+
 
     const encodedMessage = encodeURIComponent(message);
     window.location.href =
